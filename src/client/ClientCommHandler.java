@@ -10,17 +10,18 @@ class ClientCommHandler extends UnicastRemoteObject implements ClientCommInterfa
 	protected ClientCommHandler() throws RemoteException {
 	}
 
-	//data to fill from the mastern
+	//data to fill from the master
 	public byte[] currProblem = null;
 	int currProblemSize = 0;
 
 	@Override
 	public void publishProblem(byte[] hash, int problemsize) throws Exception {
-		if (hash==null) System.out.println("Problem is empty!");
-		else System.out.println(" Client received new problem of size " + problemsize);
+		if (hash==null)
+			System.out.println("Problem is empty!");
+		else
+			System.out.println(" Client received new problem of size " + problemsize);
 		currProblem = hash;
 		currProblemSize = problemsize;
 		
 	}
-
 }
