@@ -1,7 +1,6 @@
-package server;
+package client;
 
 import java.rmi.Remote;
-import client.ClientCommInterface;
 
 public interface ServerCommInterface extends Remote {
 	

@@ -3,7 +3,6 @@ package client;
 import java.rmi.Naming;
 import java.security.MessageDigest;
 import java.util.Arrays;
-import server.ServerCommInterface;
 
 public class Client {
 
