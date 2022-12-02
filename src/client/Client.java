@@ -35,6 +35,9 @@ public class Client {
 		sci.register(teamName, cch);
 		
 		MessageDigest md = MessageDigest.getInstance("MD5");
+
+		//which value should the client start to compute from
+		int startingPoint = 100;
 		
 		// Now forever solve tasks given by the server
 		while (true) {
@@ -42,7 +45,7 @@ public class Client {
 			while (cch.currProblem==null) {Thread.sleep(5);}
 			problem = cch.currProblem;
 			// Then bruteforce try all integers till problemsize
-			for (Integer i=0; i<=cch.currProblemSize; i++) {
+			for (Integer i=startingPoint; i<=cch.currProblemSize; i++) {
 				// Calculate their hash
 				byte[] currentHash = md.digest(i.toString().getBytes());
 				// If the calculated hash equals the one given by the server, submit the integer as solution
