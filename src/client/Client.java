@@ -37,6 +37,8 @@ public class Client {
 		MessageDigest md = MessageDigest.getInstance("MD5");
 
 		HashMap<byte[], Integer> map = new HashMap<>();
+		//which value should the client start to compute from
+		int startingPoint = 100;
 		
 		// Now forever solve tasks given by the server
 		while (true) {
