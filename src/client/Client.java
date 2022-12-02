@@ -3,6 +3,7 @@ package client;
 import java.rmi.Naming;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.HashMap;
 
 public class Client {
 
@@ -24,7 +25,6 @@ public class Client {
 		// Initially we have no problem :)
 		byte[] problem = null;
 
-		
 		// Lookup the server
 		ServerCommInterface sci = (ServerCommInterface)Naming.lookup("rmi://" + args[0] + "/server");
 		
@@ -35,24 +35,38 @@ public class Client {
 		sci.register(teamName, cch);
 		
 		MessageDigest md = MessageDigest.getInstance("MD5");
+
+		HashMap<byte[], Integer> map = new HashMap<>();
 		
 		// Now forever solve tasks given by the server
 		while (true) {
 			// Wait until getting a problem from the server
-			while (cch.currProblem==null) {Thread.sleep(5);}
+			while (cch.currProblem==null) {
+//				Thread.sleep(1);
+			}
+
 			problem = cch.currProblem;
 			// Then bruteforce try all integers till problemsize
-			for (Integer i=0; i<=cch.currProblemSize; i++) {
-				// Calculate their hash
-				byte[] currentHash = md.digest(i.toString().getBytes());
-				// If the calculated hash equals the one given by the server, submit the integer as solution
-				if (Arrays.equals(currentHash, problem)) {
-					System.out.println("client submits solution");
-					sci.submitSolution(teamName, i.toString());
-					cch.currProblem=null;
-					break;
+
+			if(map.get(problem) != null)
+				sci.submitSolution(teamName, String.valueOf(map.get(problem)));
+			else {
+				for (Integer i=0; i<=cch.currProblemSize; i++) {
+					// Calculate their hash
+					byte[] currentHash = md.digest(i.toString().getBytes());
+					// If the calculated hash equals the one given by the server, submit the integer as solution
+					map.put(currentHash, i);
+					if (Arrays.equals(currentHash, problem)) {
+						System.out.println("client submits solution");
+						sci.submitSolution(teamName, i.toString());
+						cch.currProblem=null;
+						break;
+					}
 				}
+
 			}
+
+
 		}
 	}
 }
