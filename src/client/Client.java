@@ -31,24 +31,25 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 
 		String type = args[3];
 		if (
-			!(type.equalsIgnoreCase("slave") ||
-			type.equalsIgnoreCase("master"))
-			) {
-				System.out.println("type has to be either 'master' or 'slave'");
-				System.exit(0);
+				!(type.equalsIgnoreCase("slave") ||
+						type.equalsIgnoreCase("master"))
+		) {
+			System.out.println("type has to be either 'master' or 'slave'");
+			System.exit(0);
 		}
 
 		// This is crucial, otherwise the RPis will not be reachable from the server/master.
 		System.setProperty("java.rmi.server.hostname", args[1]);
 
-		interfaceServer =  Naming.lookup("rmi://" + args[0] + "/server");
+		interfaceServer = Naming.lookup("rmi://" + args[0] + "/server");
 
+		String teamName = null;
 		if (type.equalsIgnoreCase("master")) {
-			String teamName = args[2];
+			teamName = args[2];
 
 			System.out.println("Client starting, listens on IP " + args[1] + " for server callback.");
 
-			while(slaves.size() != N_SLAVES) {
+			while (slaves.size() != N_SLAVES) {
 				Thread.sleep(10);
 			}
 
@@ -56,12 +57,12 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 			// The communication handler is the object that will receive the tasks from the server
 			ClientCommHandler cch = new ClientCommHandler();
 			System.out.println("Client registers with the server");
-			((ServerCommInterface)interfaceServer).register(teamName, cch);
+			((ServerCommInterface) interfaceServer).register(teamName, cch);
 
 			// Now forever solve tasks given by the server
 			while (true) {
 				// Wait until getting a problem from the server
-				while (cch.currProblem==null) {
+				while (cch.currProblem == null) {
 //				Thread.sleep(1);
 				}
 			}
@@ -77,24 +78,23 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 			}
 
 
-		} else  {
+		} else {
 
-			((MasterCommInterface)interfaceServer).subscribe(args[1]);
-
+			((MasterCommInterface) interfaceServer).subscribe(args[1]);
 
 
 		}
 
-		
+
 		MessageDigest md = MessageDigest.getInstance("MD5");
 
 		HashMap<byte[], Integer> map = new HashMap<>();
 
-		if(map.get(problem) != null)
+		if (map.get(problem) != null)
 			interfaceServer.submitSolution(teamName, String.valueOf(map.get(problem)));
 		else {
 			Integer i = index;
-			while(true) {
+			while (true) {
 				// Calculate their hash
 				byte[] currentHash = md.digest(i.toString().getBytes());
 				// If the calculated hash equals the one given by the server, submit the integer as solution
@@ -130,6 +130,11 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 	public void passProblem(byte[] problem, int index) {
 		Client.problem = problem;
 		Client.index = index;
+
+	}
+
+	@Override
+	public void submitSolution(String name, String sol)  {
 
 	}
 }
