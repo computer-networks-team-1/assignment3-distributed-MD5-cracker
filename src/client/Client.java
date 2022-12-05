@@ -3,6 +3,7 @@ package client;
 import java.net.MalformedURLException;
 import java.rmi.Naming;
 import java.rmi.NotBoundException;
+import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.security.MessageDigest;
@@ -13,7 +14,13 @@ import java.util.List;
 
 public class Client implements MasterCommInterface, SlaveCommInterface {
 
-	List<SlaveCommInterface> slaves = new ArrayList<>();
+	static List<SlaveCommInterface> slaves = new ArrayList<>();
+	static final int N_SLAVES = 1;
+
+	static byte[] problem = null;
+	static Integer index = 0;
+
+	static Remote interfaceServer;
 
 	public static void main(String[] args) throws Exception {
 
@@ -34,22 +41,22 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 		// This is crucial, otherwise the RPis will not be reachable from the server/master.
 		System.setProperty("java.rmi.server.hostname", args[1]);
 
+		interfaceServer =  Naming.lookup("rmi://" + args[0] + "/server");
+
 		if (type.equalsIgnoreCase("master")) {
 			String teamName = args[2];
 
 			System.out.println("Client starting, listens on IP " + args[1] + " for server callback.");
 
-			// Initially we have no problem :)
-			byte[] problem = null;
-
-			// Lookup the server
-			ServerCommInterface sci = (ServerCommInterface)Naming.lookup("rmi://" + args[0] + "/server");
+			while(slaves.size() != N_SLAVES) {
+				Thread.sleep(10);
+			}
 
 			// Create a communication handler and register it with the server
 			// The communication handler is the object that will receive the tasks from the server
 			ClientCommHandler cch = new ClientCommHandler();
 			System.out.println("Client registers with the server");
-			sci.register(teamName, cch);
+			((ServerCommInterface)interfaceServer).register(teamName, cch);
 
 			// Now forever solve tasks given by the server
 			while (true) {
@@ -59,12 +66,23 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 				}
 			}
 
+			int segment = cch.currProblemSize / (slaves.size() + 1);
 
-		}
+			for (int i = 0; i < slaves.size(); i++) {
+				try {
+					slaves.get(i).passProblem(cch.currProblem, (segment * i));
+				} catch (Exception e) {
+					System.out.println("Could not give the problem to some client");
+				}
+			}
 
-		if (type.equalsIgnoreCase("slave")) {
-			MasterCommInterface mci = (MasterCommInterface) Naming.lookup("rmi://" + args[0] + "/server");
-			mci.subscribe(args[1]);
+
+		} else  {
+
+			((MasterCommInterface)interfaceServer).subscribe(args[1]);
+
+
+
 		}
 
 		
@@ -72,34 +90,29 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 
 		HashMap<byte[], Integer> map = new HashMap<>();
 
-		//which value should the client start to compute from
-		int startingPoint = 100;
-		
-
-
-			problem = cch.currProblem;
-			// Then bruteforce try all integers till problemsize
-
-			if(map.get(problem) != null)
-				sci.submitSolution(teamName, String.valueOf(map.get(problem)));
-			else {
-				for (Integer i=0; i<=cch.currProblemSize; i++) {
-					// Calculate their hash
-					byte[] currentHash = md.digest(i.toString().getBytes());
-					// If the calculated hash equals the one given by the server, submit the integer as solution
-					map.put(currentHash, i);
-					if (Arrays.equals(currentHash, problem)) {
-						System.out.println("client submits solution");
-						sci.submitSolution(teamName, i.toString());
-						cch.currProblem = null;
-						break;
-					}
+		if(map.get(problem) != null)
+			interfaceServer.submitSolution(teamName, String.valueOf(map.get(problem)));
+		else {
+			Integer i = index;
+			while(true) {
+				// Calculate their hash
+				byte[] currentHash = md.digest(i.toString().getBytes());
+				// If the calculated hash equals the one given by the server, submit the integer as solution
+				map.put(currentHash, i);
+				if (Arrays.equals(currentHash, problem)) {
+					System.out.println("client submits solution");
+					sci.submitSolution(teamName, i.toString());
+					cch.currProblem = null;
+					break;
 				}
 
+				i++;
 			}
 
-
 		}
+
+
+//		}
 	}
 
 	@Override
@@ -114,7 +127,9 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 	}
 
 	@Override
-	public void passProblem(int problemSize, int index) {
+	public void passProblem(byte[] problem, int index) {
+		Client.problem = problem;
+		Client.index = index;
 
 	}
 }

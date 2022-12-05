@@ -1,7 +1,8 @@
 package client;
+import java.rmi.Remote;
 
-public interface SlaveCommInterface {
+public interface SlaveCommInterface extends Remote{
 
-    void passProblem(int problemSize, int index);
+    void passProblem(byte[] problemSize, int index);
 
 }
