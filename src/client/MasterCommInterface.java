@@ -7,5 +7,5 @@ import java.rmi.RemoteException;
 
 public interface MasterCommInterface extends Remote{
     void subscribe(String ip) throws MalformedURLException, NotBoundException, RemoteException;
-
+    void passSolution(String solution) throws Exception;
 }

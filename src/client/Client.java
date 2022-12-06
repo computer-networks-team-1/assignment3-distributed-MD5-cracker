@@ -7,6 +7,7 @@ import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -20,7 +21,11 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 	static byte[] problem = null;
 	static Integer index = 0;
 
-	static Remote interfaceServer;
+	static ServerCommInterface interfaceServer;
+
+	static HashMap<byte[], Integer> map = new HashMap<>();
+
+	static String teamName;
 
 	public static void main(String[] args) throws Exception {
 
@@ -41,7 +46,7 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 		// This is crucial, otherwise the RPis will not be reachable from the server/master.
 		System.setProperty("java.rmi.server.hostname", args[1]);
 
-		interfaceServer = Naming.lookup("rmi://" + args[0] + "/server");
+		interfaceServer = (ServerCommInterface) Naming.lookup("rmi://" + args[0] + "/server");
 
 		String teamName = null;
 		if (type.equalsIgnoreCase("master")) {
@@ -63,27 +68,32 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 			while (true) {
 				// Wait until getting a problem from the server
 				while (cch.currProblem == null) {
-//				Thread.sleep(1);
+					Thread.sleep(1);
 				}
-			}
 
-			int segment = cch.currProblemSize / (slaves.size() + 1);
+				int segment = cch.currProblemSize / (slaves.size() + 1);
 
-			for (int i = 0; i < slaves.size(); i++) {
-				try {
-					slaves.get(i).passProblem(cch.currProblem, (segment * i));
-				} catch (Exception e) {
-					System.out.println("Could not give the problem to some client");
+				for(int i = 0; i< slaves.size(); i++ ) {
+					try {
+						slaves.get(i).passProblem(cch.currProblem, (segment * i));
+					} catch (Exception e) {
+						System.out.println("Could not give the problem to some client");
+					}
 				}
-			}
 
-			doHashMaster();
+				doHashMaster();
+
+				cch.currProblem = null;
+			}
 
 		} else {
 
-			((MasterCommInterface) interfaceServer).subscribe(args[1]);
+			while(true) {
 
-			doHashSlave();
+				((MasterCommInterface) interfaceServer).subscribe(args[1]);
+
+				doHashSlave();
+			}
 
 		}
 
@@ -93,11 +103,9 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 //		}
 	}
 
-	public static void doHashMaster () {
+	public static void doHashMaster () throws Exception {
 
 		MessageDigest md = MessageDigest.getInstance("MD5");
-
-		HashMap<byte[], Integer> map = new HashMap<>();
 
 		if (map.get(problem) != null)
 			interfaceServer.submitSolution(teamName, String.valueOf(map.get(problem)));
@@ -110,8 +118,7 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 				map.put(currentHash, i);
 				if (Arrays.equals(currentHash, problem)) {
 					System.out.println("client submits solution");
-					sci.submitSolution(teamName, i.toString());
-					cch.currProblem = null;
+					interfaceServer.submitSolution(teamName, i.toString());
 					break;
 				}
 
@@ -124,14 +131,14 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 
 	}
 
-	public static void doHashSlave () {
+	public static void doHashSlave () throws Exception {
 
 		MessageDigest md = MessageDigest.getInstance("MD5");
 
 		HashMap<byte[], Integer> map = new HashMap<>();
 
 		if (map.get(problem) != null)
-			interfaceServer.submitSolution(String.valueOf(map.get(problem)));
+			((MasterCommInterface)interfaceServer).passSolution(String.valueOf(map.get(problem)));
 		else {
 			Integer i = index;
 			while (true) {
@@ -141,8 +148,7 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 				map.put(currentHash, i);
 				if (Arrays.equals(currentHash, problem)) {
 					System.out.println("client submits solution");
-					sci.submitSolution(teamName, i.toString());
-					cch.currProblem = null;
+					((MasterCommInterface)interfaceServer).passSolution(String.valueOf(map.get(problem)));
 					break;
 				}
 
@@ -154,8 +160,8 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 	}
 
 	@Override
-	public void passSolution(String solution) {
-
+	public void passSolution(String solution) throws Exception {
+		interfaceServer.submitSolution(teamName, String.valueOf(map.get(problem)));
 	}
 
 	@Override
@@ -168,11 +174,6 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 	public void passProblem(byte[] problem, int index) {
 		Client.problem = problem;
 		Client.index = index;
-
-	}
-
-	@Override
-	public void submitSolution(String name, String sol)  {
 
 	}
 }
