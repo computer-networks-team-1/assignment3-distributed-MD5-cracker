@@ -77,14 +77,23 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 				}
 			}
 
+			doHashMaster();
 
 		} else {
 
 			((MasterCommInterface) interfaceServer).subscribe(args[1]);
 
+			doHashSlave();
 
 		}
 
+
+
+
+//		}
+	}
+
+	public static void doHashMaster () {
 
 		MessageDigest md = MessageDigest.getInstance("MD5");
 
@@ -111,8 +120,37 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 
 		}
 
+		//check if a client has a solution and check i fhthe problem has changed
 
-//		}
+	}
+
+	public static void doHashSlave () {
+
+		MessageDigest md = MessageDigest.getInstance("MD5");
+
+		HashMap<byte[], Integer> map = new HashMap<>();
+
+		if (map.get(problem) != null)
+			interfaceServer.submitSolution(String.valueOf(map.get(problem)));
+		else {
+			Integer i = index;
+			while (true) {
+				// Calculate their hash
+				byte[] currentHash = md.digest(i.toString().getBytes());
+				// If the calculated hash equals the one given by the server, submit the integer as solution
+				map.put(currentHash, i);
+				if (Arrays.equals(currentHash, problem)) {
+					System.out.println("client submits solution");
+					sci.submitSolution(teamName, i.toString());
+					cch.currProblem = null;
+					break;
+				}
+
+				i++;
+			}
+
+		}
+
 	}
 
 	@Override
