@@ -15,6 +15,8 @@ import java.util.List;
 
 public class Client implements MasterCommInterface, SlaveCommInterface {
 
+	static boolean solutionFound = false;
+
 	static List<SlaveCommInterface> slaves = new ArrayList<>();
 	static final int N_SLAVES = 1;
 
@@ -111,7 +113,7 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 			interfaceServer.submitSolution(teamName, String.valueOf(map.get(problem)));
 		else {
 			Integer i = index;
-			while (true) {
+			while (!solutionFound) {
 				// Calculate their hash
 				byte[] currentHash = md.digest(i.toString().getBytes());
 				// If the calculated hash equals the one given by the server, submit the integer as solution
@@ -141,7 +143,7 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 			((MasterCommInterface)interfaceServer).passSolution(String.valueOf(map.get(problem)));
 		else {
 			Integer i = index;
-			while (true) {
+			while (!solutionFound) {
 				// Calculate their hash
 				byte[] currentHash = md.digest(i.toString().getBytes());
 				// If the calculated hash equals the one given by the server, submit the integer as solution
@@ -162,6 +164,7 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 	@Override
 	public void passSolution(String solution) throws Exception {
 		interfaceServer.submitSolution(teamName, String.valueOf(map.get(problem)));
+		solutionFound=true;
 	}
 
 	@Override
@@ -174,6 +177,5 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 	public void passProblem(byte[] problem, int index) {
 		Client.problem = problem;
 		Client.index = index;
-
 	}
 }
