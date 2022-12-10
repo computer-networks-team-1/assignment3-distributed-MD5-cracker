@@ -83,6 +83,8 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 					}
 				}
 
+				solutionFound = false;
+
 				doHashMaster();
 
 				cch.currProblem = null;
@@ -91,6 +93,8 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 		} else {
 
 			while(true) {
+
+				solutionFound = false;
 
 				((MasterCommInterface) interfaceServer).subscribe(args[1]);
 
