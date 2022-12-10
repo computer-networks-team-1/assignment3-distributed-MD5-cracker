@@ -1,21 +1,24 @@
 package client;
 
+import server.ServerCommInterface;
+
 import java.net.MalformedURLException;
 import java.rmi.Naming;
 import java.rmi.NotBoundException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
+import java.rmi.server.UnicastRemoteObject;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
-public class Client implements MasterCommInterface, SlaveCommInterface {
+public class Client extends UnicastRemoteObject implements MasterCommInterface, SlaveCommInterface {
 
 	private List<SlaveCommInterface> slaves = new ArrayList<>();
-	private final int N_SLAVES = 1;
+	private final int N_SLAVES = 0;
 
 	private byte[] problem = null;
 	private Integer index = 0;
@@ -27,6 +30,9 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 	private String teamName;
 
 	private boolean solutionFound = false;
+
+	protected Client() throws RemoteException {
+	}
 
 	public static void main(String[] args) throws Exception {
 
@@ -90,13 +96,14 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 				}
 
 				clientInstance.doHashMaster();
+				clientInstance.announceSuccess();
 				cch.currProblem = null;
 			}
 
 		} else {
 			clientInstance.interfaceServer = Naming.lookup("rmi://" + args[0] + "/master");
 
-			Naming.rebind("rmi://" + args[1] + "/slave", clientInstance);
+			//Naming.rebind("rmi://" + args[1] + "/slave", clientInstance);
 
 			System.out.println("Slave registers with the master");
 			((MasterCommInterface) clientInstance.interfaceServer).subscribe(args[1]);
@@ -179,7 +186,7 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 
 	//SlaveCommInterface methods
 	@Override
-	public void passProblem(byte[] problem, int index) {
+	public void passProblem(byte[] problem, int index) throws RemoteException{
 		if (problem == null)
 			System.out.println("Problem is empty!");
 		else
@@ -189,7 +196,8 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 			this.index = index;
 	}
 
-	public void announceSuccess(){
+	@Override
+	public void announceSuccess() throws RemoteException {
 		solutionFound = true;
 	}
 
