@@ -26,6 +26,8 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 
 	private String teamName;
 
+	private boolean solutionFound = false;
+
 	public static void main(String[] args) throws Exception {
 
 		if (args.length < 4) {
@@ -54,7 +56,7 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 
 			Naming.rebind("rmi://" + args[1] + "/master", clientInstance);
 
-			String teamName = args[2];
+			clientInstance.teamName = args[2];
 
 			System.out.println("Client starting, listens on IP " + args[1] + " for server callback.");
 
@@ -66,10 +68,11 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 			// The communication handler is the object that will receive the tasks from the server
 			ClientCommHandler cch = new ClientCommHandler();
 			System.out.println("Client registers with the server");
-			((ServerCommInterface)clientInstance.interfaceServer).register(teamName, cch);
+			((ServerCommInterface)clientInstance.interfaceServer).register(clientInstance.teamName, cch);
 
 			// Now forever solve tasks given by the server
 			while (true) {
+				clientInstance.solutionFound = false;
 				// Wait until getting a problem from the server
 				while (cch.currProblem == null) {
 					Thread.sleep(1);
@@ -100,6 +103,7 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 
 			// Wait until getting a problem from the master
 			while(true) {
+				clientInstance.solutionFound = false;
 				while (clientInstance.problem == null) {
 					Thread.sleep(1);
 				}
@@ -119,16 +123,15 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 		if (map.get(problem) != null)
 			((ServerCommInterface)interfaceServer).submitSolution(teamName, String.valueOf(map.get(problem)));
 		else {
-			while (true) {
+			while (!solutionFound) {
 				// Calculate their hash
 				byte[] currentHash = md.digest(index.toString().getBytes());
 				// If the calculated hash equals the one given by the server, submit the integer as solution
 				map.put(currentHash, index);
 				if (Arrays.equals(currentHash, problem)) {
-					System.out.println("client submits solution");
+					System.out.println("master client submits solution");
 					((ServerCommInterface)interfaceServer).submitSolution(teamName, index.toString());
-					index++;
-					break;
+					solutionFound = true;
 				}
 				index++;
 			}
@@ -144,16 +147,15 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 		if (map.get(problem) != null)
 			((MasterCommInterface)interfaceServer).passSolution(String.valueOf(map.get(problem)));
 		else {
-			while (true) {
+			while (!solutionFound) {
 				// Calculate their hash
 				byte[] currentHash = md.digest(index.toString().getBytes());
 				// If the calculated hash equals the one given by the server, submit the integer as solution
 				map.put(currentHash, index);
 				if (Arrays.equals(currentHash, problem)) {
-					System.out.println("client submits solution");
+					System.out.println("slave client submits solution");
 					((MasterCommInterface)interfaceServer).passSolution(String.valueOf(map.get(problem)));
-					index++;
-					break;
+					solutionFound = true;
 				}
 				index++;
 			}
@@ -166,6 +168,7 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 	@Override
 	public void passSolution(String solution) throws Exception {
 		((ServerCommInterface)interfaceServer).submitSolution(teamName, String.valueOf(map.get(problem)));
+		solutionFound = true;
 	}
 
 	@Override
@@ -182,7 +185,12 @@ public class Client implements MasterCommInterface, SlaveCommInterface {
 		else
 			System.out.println("Client received new problem");
 		this.problem = problem;
-		this.index = index;
+		if (index == 0)
+			this.index = index;
+	}
+
+	public void announceSuccess(){
+		solutionFound = true;
 	}
 
 }
