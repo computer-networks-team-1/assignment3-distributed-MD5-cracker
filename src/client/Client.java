@@ -18,7 +18,7 @@ import java.util.List;
 public class Client extends UnicastRemoteObject implements MasterCommInterface, SlaveCommInterface {
 
 	private List<SlaveCommInterface> slaves = new ArrayList<>();
-	private final int N_SLAVES = 0;
+	private final int N_SLAVES = 1;
 
 	private byte[] problem = null;
 	private Integer index = 0;
@@ -58,7 +58,7 @@ public class Client extends UnicastRemoteObject implements MasterCommInterface, 
 
 
 		if (type.equalsIgnoreCase("master")) {
-			clientInstance.interfaceServer = Naming.lookup("rmi://" + args[0] + "/server");
+			//clientInstance.interfaceServer = Naming.lookup("rmi://" + args[0] + "/server");
 
 			Naming.rebind("rmi://" + args[1] + "/master", clientInstance);
 
@@ -69,6 +69,7 @@ public class Client extends UnicastRemoteObject implements MasterCommInterface, 
 			while (clientInstance.slaves.size() != clientInstance.N_SLAVES) {
 				Thread.sleep(10);
 			}
+			System.out.println("All slaves registered with the master");
 
 			// Create a communication handler and register it with the server
 			// The communication handler is the object that will receive the tasks from the server
@@ -106,7 +107,7 @@ public class Client extends UnicastRemoteObject implements MasterCommInterface, 
 			//Naming.rebind("rmi://" + args[1] + "/slave", clientInstance);
 
 			System.out.println("Slave registers with the master");
-			((MasterCommInterface) clientInstance.interfaceServer).subscribe(args[1]);
+			((MasterCommInterface) clientInstance.interfaceServer).subscribe(clientInstance);
 
 			// Wait until getting a problem from the master
 			while(true) {
@@ -179,8 +180,7 @@ public class Client extends UnicastRemoteObject implements MasterCommInterface, 
 	}
 
 	@Override
-	public void subscribe(String ip) throws MalformedURLException, NotBoundException, RemoteException {
-		SlaveCommInterface sci = (SlaveCommInterface) Naming.lookup("rmi://" + ip + "/slave");
+	public void subscribe(SlaveCommInterface sci) throws MalformedURLException, NotBoundException, RemoteException {
 		slaves.add(sci);
 	}
 
