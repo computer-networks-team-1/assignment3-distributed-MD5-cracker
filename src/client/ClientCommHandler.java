@@ -22,6 +22,5 @@ class ClientCommHandler extends UnicastRemoteObject implements ClientCommInterfa
 			System.out.println(" Client received new problem of size " + problemsize);
 		currProblem = hash;
 		currProblemSize = problemsize;
-		
 	}
 }
