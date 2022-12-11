@@ -4,7 +4,6 @@ import java.rmi.RemoteException;
 
 public interface SlaveCommInterface extends Remote{
 
-    void passProblem(byte[] problemSize, int index) throws RemoteException;
-    void announceSuccess() throws RemoteException;
-
+    void passProblem(byte[] problem) throws RemoteException;
+    void setProblemSpace(int index, int segmentSize) throws RemoteException;
 }

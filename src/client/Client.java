@@ -2,17 +2,15 @@ package client;
 
 import server.ServerCommInterface;
 
-import java.net.MalformedURLException;
 import java.rmi.Naming;
-import java.rmi.NotBoundException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 
 public class Client extends UnicastRemoteObject implements MasterCommInterface, SlaveCommInterface {
@@ -22,33 +20,22 @@ public class Client extends UnicastRemoteObject implements MasterCommInterface, 
 
 	private byte[] problem = null;
 	private Integer index = 0;
+	private Integer segmentSize = 0;
 
-	private Remote interfaceServer;
-
-	private HashMap<byte[], Integer> map = new HashMap<>();
+	private Remote interfaceServer; //Problem server or Master-client
 
 	private String teamName;
 
-	private boolean solutionFound = false;
+	private final MessageDigest md = MessageDigest.getInstance("MD5");
 
-	protected Client() throws RemoteException {
+	protected Client() throws RemoteException, NoSuchAlgorithmException {
 	}
 
 	public static void main(String[] args) throws Exception {
 
-		if (args.length < 4) {
-			System.out.println("Proper Usage is: java Client serverAddress yourOwnIPAddress teamname type");
-			System.exit(0);
-		}
+		checkCommandLineArgs(args);
 
 		String type = args[3];
-		if (
-				!(type.equalsIgnoreCase("slave") ||
-						type.equalsIgnoreCase("master"))
-		) {
-			System.out.println("type has to be either 'master' or 'slave'");
-			System.exit(0);
-		}
 
 		LocateRegistry.createRegistry(1099);
 		Client clientInstance = new Client();
@@ -80,137 +67,117 @@ public class Client extends UnicastRemoteObject implements MasterCommInterface, 
 
 			// Now forever solve tasks given by the server
 			while (true) {
-				clientInstance.solutionFound = false;
 
-				if (clientInstance.problem == cch.currProblem) { //clientInstance solved the problem
-					cch.currProblem = null;
-				}
-
-				for(int i = 0; i< clientInstance.slaves.size(); i++ ) {
-					try {
-						clientInstance.slaves.get(i).announceSuccess();
-					} catch (Exception e) {
-						System.out.println("Could not announce success to some client");
-					}
-				}
-
-				// Wait until getting a problem from the server
-				while (cch.currProblem == null) {
-					Thread.sleep(1);
-				}
 				clientInstance.problem = cch.currProblem;
 
 				//Distribute problem to slaves
-				int segment = cch.currProblemSize / (clientInstance.slaves.size() + 1);
+				clientInstance.segmentSize = cch.currProblemSize / (clientInstance.slaves.size() + 1);
 
 				for(int i = 0; i< clientInstance.slaves.size(); i++ ) {
 					try {
-
-						clientInstance.slaves.get(i).passProblem(clientInstance.problem, (segment * i));
+						SlaveCommInterface currSlave = clientInstance.slaves.get(i);
+						currSlave.setProblemSpace(clientInstance.segmentSize * i, clientInstance.segmentSize); //TODO overhead calculations. Could be optimized
+						currSlave.passProblem(cch.currProblem);
 					} catch (Exception e) {
-						System.out.println("Could not give the problem to some client");
+						System.out.println("Could not pass the problem to some client");
 					}
 				}
 
 				clientInstance.doHashMaster(cch);
 			}
 
-		} else {
+		} else { //type == slave
 			clientInstance.interfaceServer = Naming.lookup("rmi://" + args[0] + "/master");
 
-			System.out.println("Slave registers with the master");
-			((MasterCommInterface) clientInstance.interfaceServer).subscribe(clientInstance);
+			((MasterCommInterface)clientInstance.interfaceServer).subscribe(clientInstance);
+			System.out.println("Slave client registered with the master client");
 
-			// Wait until getting a problem from the master
-			while(true) {
-				clientInstance.solutionFound = false;
-				while (clientInstance.problem == null) {
-					Thread.sleep(1);
-				}
-
-				clientInstance.doHashSlave();
+			//Await first problem. This should only be necessary for first problem
+			while (clientInstance.problem == null) {
+				Thread.sleep(1);
 			}
 
+			// Just go and solve problems continuously
+			clientInstance.doHashSlave();
 		}
 
 	}
 
+	private static void checkCommandLineArgs(String[] args) {
+		if (args.length < 4) {
+			System.out.println("Proper Usage is: java Client serverAddress yourOwnIPAddress teamname type");
+			System.exit(0);
+		}
+
+		if (
+				!(args[3].equalsIgnoreCase("slave") ||
+						args[3].equalsIgnoreCase("master"))
+		) {
+			System.out.println("type has to be either 'master' or 'slave'");
+			System.exit(0);
+		}
+	}
+
 	public void doHashMaster (ClientCommHandler cch) throws Exception {
 
-		MessageDigest md = MessageDigest.getInstance("MD5");
-
-		if (map.get(problem) != null)
-			((ServerCommInterface)interfaceServer).submitSolution(teamName, String.valueOf(map.get(problem)));
-		else {
-			while (!solutionFound && this.problem == cch.currProblem) {
-				// Calculate their hash
-				byte[] currentHash = md.digest(index.toString().getBytes());
-				// If the calculated hash equals the one given by the server, submit the integer as solution
-				map.put(currentHash, index);
-				if (Arrays.equals(currentHash, problem)) {
-					System.out.println("Master client submits solution");
-					((ServerCommInterface)interfaceServer).submitSolution(teamName, index.toString());
-					solutionFound = true;
-				}
-				index++;
+		int i = index;
+		while (this.problem == cch.currProblem) {
+			byte[] currentHash = md.digest(index.toString().getBytes());
+			if (Arrays.equals(currentHash, problem)) {
+				((ServerCommInterface)interfaceServer).submitSolution(teamName, index.toString());
+				System.out.println("Master client submitted solution");
 			}
-
+			//Suppose that search space is made up by equally sized segments
+			//We go through search space in a loop
+			if ((i + 1) <= (index + segmentSize)) {
+				i++;
+			} else {
+				i = index;
+			}
 		}
 
 	}
 
 	public void doHashSlave () throws Exception {
 
-		MessageDigest md = MessageDigest.getInstance("MD5");
-
-		if (map.get(problem) != null)
-			((MasterCommInterface)interfaceServer).passSolution(String.valueOf(map.get(problem)));
-		else {
-			while (!solutionFound) {
-				// Calculate their hash
-				byte[] currentHash = md.digest(index.toString().getBytes());
-				// If the calculated hash equals the one given by the server, submit the integer as solution
-				map.put(currentHash, index);
-				if (Arrays.equals(currentHash, problem)) {
-					System.out.println("slave client submits solution");
-					((MasterCommInterface)interfaceServer).passSolution(String.valueOf(map.get(problem)));
-					solutionFound = true;
-					problem = null;
-				}
-				index++;
+		int i = index;
+		while (true) {
+			byte[] currentHash = md.digest(Integer.valueOf(i).toString().getBytes());
+			if (Arrays.equals(currentHash, problem)) {
+				((MasterCommInterface)interfaceServer).passSolution(String.valueOf(index));
+				System.out.println("Slave client submitted solution to Master client");
 			}
-
+			//Suppose that search space is made up by equally sized segments
+			//We go through search space in a loop
+			if ((i + 1) <= (index + segmentSize)) {
+				i++;
+			} else {
+				i = index;
+			}
 		}
 
 	}
 
 	//MasterCommInterface methods
 	@Override
-	public void passSolution(String solution) throws Exception {
-		((ServerCommInterface)interfaceServer).submitSolution(teamName, String.valueOf(map.get(problem)));
-		solutionFound = true;
+	public void passSolution(String sol) throws Exception {
+		((ServerCommInterface) interfaceServer).submitSolution(teamName, sol);
 	}
 
 	@Override
-	public void subscribe(SlaveCommInterface sci) throws MalformedURLException, NotBoundException, RemoteException {
+	public void subscribe(SlaveCommInterface sci) {
 		slaves.add(sci);
 	}
 
 	//SlaveCommInterface methods
 	@Override
-	public void passProblem(byte[] problem, int index) throws RemoteException{
-		if (problem == null)
-			System.out.println("Problem is empty!");
-		else
-			System.out.println("Client received new problem");
+	public void passProblem(byte[] problem) {
 		this.problem = problem;
-		if (index == 0)
-			this.index = index;
 	}
 
 	@Override
-	public void announceSuccess() throws RemoteException {
-		solutionFound = true;
+	public void setProblemSpace(int index, int segmentSize) {
+		this.index = index;
+		this.segmentSize = segmentSize;
 	}
-
 }
