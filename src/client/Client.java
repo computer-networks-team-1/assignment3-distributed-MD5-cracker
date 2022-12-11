@@ -18,7 +18,7 @@ import java.util.List;
 public class Client extends UnicastRemoteObject implements MasterCommInterface, SlaveCommInterface {
 
 	private List<SlaveCommInterface> slaves = new ArrayList<>();
-	private final int N_SLAVES = 1;
+	private final int N_SLAVES = 0; //TODO should this be a commandline argument?
 
 	private byte[] problem = null;
 	private Integer index = 0;
@@ -58,13 +58,13 @@ public class Client extends UnicastRemoteObject implements MasterCommInterface, 
 
 
 		if (type.equalsIgnoreCase("master")) {
-			//clientInstance.interfaceServer = Naming.lookup("rmi://" + args[0] + "/server");
+			clientInstance.interfaceServer = Naming.lookup("rmi://" + args[0] + "/server");
 
 			Naming.rebind("rmi://" + args[1] + "/master", clientInstance);
 
 			clientInstance.teamName = args[2];
 
-			System.out.println("Client starting, listens on IP " + args[1] + " for server callback.");
+			System.out.println("Master client starting, listens on IP " + args[1] + " for server callback.");
 
 			while (clientInstance.slaves.size() != clientInstance.N_SLAVES) {
 				Thread.sleep(10);
@@ -74,37 +74,49 @@ public class Client extends UnicastRemoteObject implements MasterCommInterface, 
 			// Create a communication handler and register it with the server
 			// The communication handler is the object that will receive the tasks from the server
 			ClientCommHandler cch = new ClientCommHandler();
-			System.out.println("Client registers with the server");
+
 			((ServerCommInterface)clientInstance.interfaceServer).register(clientInstance.teamName, cch);
+			System.out.println("Master client registered with the server");
 
 			// Now forever solve tasks given by the server
 			while (true) {
 				clientInstance.solutionFound = false;
+
+				if (clientInstance.problem == cch.currProblem) { //clientInstance solved the problem
+					cch.currProblem = null;
+				}
+
+				for(int i = 0; i< clientInstance.slaves.size(); i++ ) {
+					try {
+						clientInstance.slaves.get(i).announceSuccess();
+					} catch (Exception e) {
+						System.out.println("Could not announce success to some client");
+					}
+				}
+
 				// Wait until getting a problem from the server
 				while (cch.currProblem == null) {
 					Thread.sleep(1);
 				}
 				clientInstance.problem = cch.currProblem;
+
 				//Distribute problem to slaves
 				int segment = cch.currProblemSize / (clientInstance.slaves.size() + 1);
 
 				for(int i = 0; i< clientInstance.slaves.size(); i++ ) {
 					try {
+
 						clientInstance.slaves.get(i).passProblem(clientInstance.problem, (segment * i));
 					} catch (Exception e) {
 						System.out.println("Could not give the problem to some client");
 					}
 				}
 
-				clientInstance.doHashMaster();
-				clientInstance.announceSuccess();
-				cch.currProblem = null;
+				clientInstance.doHashMaster(cch);
 			}
 
 		} else {
 			clientInstance.interfaceServer = Naming.lookup("rmi://" + args[0] + "/master");
-
-			//Naming.rebind("rmi://" + args[1] + "/slave", clientInstance);
 
 			System.out.println("Slave registers with the master");
 			((MasterCommInterface) clientInstance.interfaceServer).subscribe(clientInstance);
@@ -117,27 +129,26 @@ public class Client extends UnicastRemoteObject implements MasterCommInterface, 
 				}
 
 				clientInstance.doHashSlave();
-				clientInstance.problem = null;
 			}
 
 		}
 
 	}
 
-	public void doHashMaster () throws Exception {
+	public void doHashMaster (ClientCommHandler cch) throws Exception {
 
 		MessageDigest md = MessageDigest.getInstance("MD5");
 
 		if (map.get(problem) != null)
 			((ServerCommInterface)interfaceServer).submitSolution(teamName, String.valueOf(map.get(problem)));
 		else {
-			while (!solutionFound) {
+			while (!solutionFound && this.problem == cch.currProblem) {
 				// Calculate their hash
 				byte[] currentHash = md.digest(index.toString().getBytes());
 				// If the calculated hash equals the one given by the server, submit the integer as solution
 				map.put(currentHash, index);
 				if (Arrays.equals(currentHash, problem)) {
-					System.out.println("master client submits solution");
+					System.out.println("Master client submits solution");
 					((ServerCommInterface)interfaceServer).submitSolution(teamName, index.toString());
 					solutionFound = true;
 				}
@@ -164,6 +175,7 @@ public class Client extends UnicastRemoteObject implements MasterCommInterface, 
 					System.out.println("slave client submits solution");
 					((MasterCommInterface)interfaceServer).passSolution(String.valueOf(map.get(problem)));
 					solutionFound = true;
+					problem = null;
 				}
 				index++;
 			}
