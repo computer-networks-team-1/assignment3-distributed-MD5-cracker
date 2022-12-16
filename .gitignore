@@ -1,2 +1,4 @@
-.idea/
-out/
+src/.idea
+/out
+
+assignment3-distributed-MD5-cracker.iml
